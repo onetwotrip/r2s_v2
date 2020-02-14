@@ -3,7 +3,7 @@ package worker
 import (
 	"errors"
 	"fmt"
-	"github.com/Ahton89/r2s_v2/r2s/redis"
+	"github.com/onetwotrip/r2s_v2/r2s/redis"
 	"github.com/caarlos0/env"
 	"github.com/elliotchance/sshtunnel"
 	log "github.com/sirupsen/logrus"

@@ -1,4 +1,4 @@
-module github.com/Ahton89/r2s_v2
+module github.com/onetwotrip/r2s_v2
 
 go 1.13
 

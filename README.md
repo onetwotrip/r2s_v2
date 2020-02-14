@@ -1,5 +1,5 @@
 # r2s
-[![Build Status](https://travis-ci.com/Ahton89/r2s_v2.svg?branch=0.0.24)](https://travis-ci.org/Ahton89/r2s)
+[![Build Status](https://travis-ci.com/onetwotrip/r2s_v2.svg?branch=master)](https://travis-ci.org/onetwotrip/r2s)
 
 Tool for copy hashes from redis to redis
 
