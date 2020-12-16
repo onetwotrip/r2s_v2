@@ -1,7 +1,7 @@
 package r2s
 
 import (
-	"github.com/Ahton89/r2s_v2/r2s/worker"
+	"github.com/onetwotrip/r2s_v2/r2s/worker"
 	log "github.com/sirupsen/logrus"
 )
 
