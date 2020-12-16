@@ -6,13 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
 const footerMsg = `
 Показаны %d нод(ы) из %d, остальные ищи в логах.
-Ошибки могут быть из-за того, что не забутстраплены беты/сенды из списка,
+Ошибки могут быть из-за того, что не забутстраплены беты/сенды из списка, 
 на этих нодах высокое значение Load Average либо остановлен redis@shared.service.
 Для более подробной информации включи DEBUG в джобе.
 `
@@ -30,9 +29,19 @@ type attachmentStruct struct {
 	Footer    string         `json:"footer"`
 }
 
+type fieldsStruct struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+	Short bool   `json:"short"`
+}
+
 func (w *workerStruct) appendErrorHost(name string) {
 	w.mt.Lock()
-	w.errorHosts = append(w.errorHosts, name)
+	w.errorHosts = append(w.errorHosts, fieldsStruct{
+		Title: "Node",
+		Value: name,
+		Short: true,
+	})
 	w.mt.Unlock()
 }
 
@@ -43,18 +52,14 @@ func (w *workerStruct) sendSlackMessage() error {
 	} else {
 		lastFourNode = w.errorHosts
 	}
-	var sb strings.Builder
-	sb.WriteString("На следующие ноды не удалось скопировать справочники (refs:*)\n")
-	sb.WriteString("из продового редиса:\n")
-	sb.WriteString(strings.Join(lastFourNode, ", "))
-
 	msg := &slackMessage{
 		Attachments: []attachmentStruct{
 			{
 				Color:     "warning",
 				Title:     "Ошибка копирования справочников",
 				TitleLink: w.config.BuildUrl,
-				Text:      sb.String(),
+				Text:      "На следующие ноды не удалось скопировать справочники (refs:*)\nиз продового редиса:",
+				Fields:    lastFourNode,
 				Footer:    fmt.Sprintf(footerMsg, len(lastFourNode), len(w.errorHosts)),
 			},
 		},
