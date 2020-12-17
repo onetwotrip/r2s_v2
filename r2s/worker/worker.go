@@ -3,18 +3,19 @@ package worker
 import (
 	"errors"
 	"fmt"
-	"github.com/onetwotrip/r2s_v2/r2s/redis"
-	"github.com/caarlos0/env"
-	"github.com/elliotchance/sshtunnel"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/caarlos0/env"
+	"github.com/elliotchance/sshtunnel"
+	"github.com/onetwotrip/r2s_v2/r2s/redis"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 type workerStruct struct {
@@ -45,6 +46,7 @@ type config struct {
 	RedisProductionDb   int      `env:"REDIS_PRODUCTION_DB" envDefault:"0"`
 	Recipients          []string `env:"RECIPIENTS,required" envSeparator:","`
 	Hashes              []string `env:"HASHES,required" envSeparator:","`
+	HashesOptional      []string `env:"HASHES_OPTIONAL" envSeparator:","`
 	RecipientRedisDbNum int      `env:"RECIPIENT_REDIS_DB_NUM" envDefault:"0"`
 	RecipientRedisPort  int      `env:"RECIPIENT_REDIS_PORT" envDefault:"6379"`
 	SshUsername         string   `env:"SSH_USERNAME,required"`
@@ -180,14 +182,59 @@ func (w *workerStruct) Run() {
 	}
 }
 
+func (w *workerStruct) fetchHashes(prodRedis redis.RedisInterface, hashes []string, optional bool) {
+	for _, hash := range hashes {
+		log.WithFields(log.Fields{
+			"function": "fetchHashes()",
+			"hash":     hash,
+		}).Debug("fetching...")
+
+		hashesKeys, err := prodRedis.GetHashKeys(hash)
+		if err != nil {
+			if optional {
+				log.WithFields(log.Fields{
+					"error": err,
+					"hash":  hash,
+				}).Info("skipping optional hash")
+				continue
+			} else {
+				log.WithFields(log.Fields{
+					"error": err,
+					"hash":  hash,
+				}).Fatal("fetch keys for hash")
+			}
+		}
+
+		log.WithFields(log.Fields{
+			"function": "fetchHashes()",
+		}).Debug("add fetched data to array")
+
+		for _, hashKey := range hashesKeys {
+			w.redisProdData[hash] = append(w.redisProdData[hash], redisProdDataStruct{
+				key:   hashKey,
+				value: prodRedis.GetHashValues(hash, hashKey),
+			})
+		}
+
+		log.WithFields(log.Fields{
+			"function": "fetchHashes()",
+			"hash":     hash,
+			"keys":     len(w.redisProdData[hash]),
+		}).Debug("fetched keys info")
+	}
+}
+
 func (w *workerStruct) fetchProdData() {
 	log.WithFields(log.Fields{
 		"function": "fetchProdData()",
 	}).Debug("init new redis connection")
+
 	prodRedis := redis.New()
+
 	log.WithFields(log.Fields{
 		"function": "fetchProdData()",
 	}).Debug("connect to redis")
+
 	err := prodRedis.Connect(fmt.Sprintf("%s:%d",
 		w.config.RedisProductionHost,
 		w.config.RedisProductionPort),
@@ -197,35 +244,14 @@ func (w *workerStruct) fetchProdData() {
 			"error": err,
 		}).Fatal("production redis connection")
 	}
+
 	defer prodRedis.Close()
+
 	log.Info("fetching init data from production redis...")
-	for _, hash := range w.config.Hashes {
-		log.WithFields(log.Fields{
-			"function": "fetchProdData()",
-			"hash":     hash,
-		}).Debug("fetching...")
-		hashesKeys, err := prodRedis.GetHashKeys(hash)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"error": err,
-				"hash":  hash,
-			}).Fatal("fetch keys for hash")
-		}
-		log.WithFields(log.Fields{
-			"function": "fetchProdData()",
-		}).Debug("add fetched data to array")
-		for _, hashKey := range hashesKeys {
-			w.redisProdData[hash] = append(w.redisProdData[hash], redisProdDataStruct{
-				key:   hashKey,
-				value: prodRedis.GetHashValues(hash, hashKey),
-			})
-		}
-		log.WithFields(log.Fields{
-			"function": "fetchProdData()",
-			"hash":     hash,
-			"keys":     len(w.redisProdData[hash]),
-		}).Debug("fetched keys info")
-	}
+
+	w.fetchHashes(prodRedis, w.config.Hashes, false)
+	w.fetchHashes(prodRedis, w.config.HashesOptional, true)
+
 	log.Info("all production hashes fetched")
 }
 
